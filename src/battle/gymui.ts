@@ -7,7 +7,7 @@ import type { Input } from "../core/input";
 import { paletteById } from "../core/palette";
 import { spriteDataUrl } from "../core/sprites";
 import { CREATURE_SPRITES } from "../content/art-creatures";
-import type { ProgramBattleDef } from "../content/gyms";
+import type { CoachTopic, ProgramBattleDef } from "../content/gyms";
 import { SONGS } from "../content/music";
 import { grantXp, unlockedVocab, removeItem, type GameState } from "../game/state";
 import { el, ui } from "../ui/dom";
@@ -30,6 +30,74 @@ import {
 	type RoutineTable,
 	type RunResult
 } from "./vm";
+
+// Plain-English, step-by-step coaching shown the first time a player meets
+// each new idea in a gym battle. Every card says both WHAT the idea is and,
+// crucially, exactly which buttons to press to build it here.
+const COACH: Record<CoachTopic, { title: string; lines: string[] }> = {
+	basics: {
+		title: "HOW GYM BATTLES WORK",
+		lines: [
+			"Your bot only does what you program.",
+			"Build a list of BLOCKS, press RUN, watch it play out against the enemy's PATTERN (top-right — it repeats forever).",
+			"• Tap a block under BLOCKS to add it to your PROGRAM.",
+			"• Tap a block in your program to remove it.",
+			"• Press RUN to test. Lose? No penalty — edit and run again.",
+			"The enemy never changes its moves. It's a puzzle, not a gamble."
+		]
+	},
+	repeat: {
+		title: "NEW: THE REPEAT LOOP",
+		lines: [
+			"A loop does the same step many times, so you don't add it over and over.",
+			"REPEAT x9 [ZAP] means: zap nine times — with one loop.",
+			"To build it right now:",
+			"1. Tap REPEAT, then pick a number (try 9).",
+			"2. Tap ZAP — it drops INSIDE the loop.",
+			"3. Tap CLOSE LOOP.",
+			"4. Press RUN."
+		]
+	},
+	if: {
+		title: "NEW: THE IF BLOCK",
+		lines: [
+			"IF looks at what the enemy is doing THIS turn, and reacts.",
+			"IF SHIELD UP: PIERCE ELSE ZAP = if it's shielding, PIERCE through; otherwise ZAP.",
+			"To build it:",
+			"1. Tap IF, choose a condition (e.g. SHIELD UP).",
+			"2. Choose the THEN move, then the ELSE move.",
+			"3. Wrap it in a REPEAT so it reacts every turn. RUN."
+		]
+	},
+	vars: {
+		title: "NEW: BOOST + POWER",
+		lines: [
+			"Some enemies have ARMOR that shrugs off small hits. You need one BIG hit.",
+			"BOOST banks power. Your next ZAP spends all of it at once.",
+			"IF PWR>=3 checks how much you've saved.",
+			"Try: REPEAT [ BOOST, BOOST, IF PWR>=3: ZAP ] — charge, then unload."
+		]
+	},
+	func: {
+		title: "NEW: NAME YOUR OWN MOVES",
+		lines: [
+			"When a combo repeats, name it once and reuse it.",
+			"1. Build a short combo (2-3 blocks).",
+			"2. Tap SAVE ROUTINE, give it a name (e.g. JAB).",
+			"3. Now DO JAB runs the whole combo using ONE slot.",
+			"Name a few combos, then DO them — big fights, small memory."
+		]
+	},
+	debug: {
+		title: "NEW: FIX THE BROKEN PROGRAM",
+		lines: [
+			"This time you START with a program someone else wrote. It ALMOST works.",
+			"1. Press RUN and watch exactly where it fails.",
+			"2. Change ONE block — tap a block to remove it, add the right one.",
+			"3. RUN again. Don't rewrite it; find the single wrong block."
+		]
+	}
+};
 
 type Zone = "program" | "palette" | "actions";
 type Picker =
@@ -80,6 +148,7 @@ export class GymBattle {
 	private zone: Zone = "palette";
 	private zoneIndex: Record<Zone, number> = { program: 0, palette: 0, actions: 0 };
 	private cancelPlayback: (() => void) | null = null;
+	private coachEl: HTMLElement | null = null;
 
 	constructor(
 		state: GameState,
@@ -129,6 +198,10 @@ export class GymBattle {
 		const header = el("div", "gym-header", this.root);
 		el("div", "gym-title", header, def.title);
 		this.memNode = el("div", "gym-mem", header, "");
+		// A HELP button re-opens the how-to at any time.
+		const help = el("button", "gym-help", header, "?");
+		help.setAttribute("aria-label", "How to play this battle");
+		help.addEventListener("click", () => this.showCoach(def.teaches ?? "basics"));
 
 		const main = el("div", "gym-main", this.root);
 
@@ -172,6 +245,33 @@ export class GymBattle {
 		this.actionsRow = el("div", "actions-row", bottom);
 
 		this.paintAll();
+
+		// First time meeting this battle's idea, teach it up front.
+		const topic = def.teaches;
+		if (topic && this.state.flags["coached." + topic] !== true) {
+			this.showCoach(topic);
+		}
+	}
+
+	// A dismissable how-to card over the battle. Blocks editor input while open.
+	private showCoach(topic: CoachTopic): void {
+		this.coachEl?.remove();
+		const card = COACH[topic];
+		const overlay = el("div", "coach-overlay", this.root!);
+		const box = el("div", "coach-card gbbox", overlay);
+		el("div", "coach-title", box, card.title);
+		const body = el("div", "coach-body", box);
+		for (const line of card.lines) el("div", "coach-line", body, line);
+		const ok = el("button", "gbbtn coach-ok", box, "GOT IT");
+		ok.addEventListener("click", () => this.dismissCoach(topic));
+		this.coachEl = overlay;
+	}
+
+	private dismissCoach(topic: CoachTopic): void {
+		this.state.flags["coached." + topic] = true;
+		this.coachEl?.remove();
+		this.coachEl = null;
+		this.audio.sfx("confirm");
 	}
 
 	private say(text: string): void {
@@ -664,6 +764,14 @@ export class GymBattle {
 
 	update(): void {
 		if (!this.active || this.running || !this.root) return;
+		// Coach card is modal: any button dismisses it, editor stays frozen.
+		if (this.coachEl) {
+			if (this.input.pressed("a") || this.input.pressed("b") || this.input.pressed("start")) {
+				const topic = this.def?.teaches ?? "basics";
+				this.dismissCoach(topic);
+			}
+			return;
+		}
 		const zones: Zone[] = ["program", "palette", "actions"];
 		if (this.input.pressed("down") || this.input.pressed("up")) {
 			const dir = this.input.pressed("down") ? 1 : -1;

@@ -33,7 +33,11 @@ export interface ProgramBattleDef {
 	gatedBy?: "repeat" | "if" | "vars" | "func";
 	// Debugging battles: the editor starts loaded with this broken program.
 	prefill?: Program;
+	// First-time coaching to show on entering this battle (once per topic).
+	teaches?: CoachTopic;
 }
+
+export type CoachTopic = "basics" | "repeat" | "if" | "vars" | "func" | "debug";
 
 const atk = (n: number): EnemyMove => ({ kind: "atk", n });
 const wait: EnemyMove = { kind: "wait" };
@@ -57,6 +61,7 @@ export const PROGRAM_BATTLES: Record<string, ProgramBattleDef> = {
 		xp: 8,
 		bits: 8,
 		winFlag: "won.gym1-t1",
+		teaches: "basics",
 		intro: "Two-step pattern: ATK 2, then rest. When do you guard? When do you zap?",
 		authored: [act("GUARD"), act("ZAP"), act("GUARD"), act("ZAP")]
 	},
@@ -74,6 +79,7 @@ export const PROGRAM_BATTLES: Record<string, ProgramBattleDef> = {
 		xp: 20,
 		bits: 25,
 		winFlag: "won.gym1",
+		teaches: "basics",
 		intro: "Four beats, forever: ATK 3 · rest · SHIELD · rest. Zap a shield and it bites back. Order is everything.",
 		winText: "Every block in its right place.",
 		authored: [act("GUARD"), act("ZAP"), act("WAIT"), act("ZAP"), act("GUARD"), act("ZAP")]
@@ -92,6 +98,7 @@ export const PROGRAM_BATTLES: Record<string, ProgramBattleDef> = {
 		xp: 12,
 		bits: 12,
 		winFlag: "won.gym2-t1",
+		teaches: "repeat",
 		intro: "Twelve HP, three slots. Type ZAP twelve times? You may not.",
 		authored: [rep(6, [act("ZAP")]), act("ZAP")]
 	},
@@ -109,6 +116,7 @@ export const PROGRAM_BATTLES: Record<string, ProgramBattleDef> = {
 		xp: 30,
 		bits: 35,
 		winFlag: "won.gym2",
+		teaches: "repeat",
 		intro: "16 HP, and only 4 slots — but you don't need 4. Wrap ONE zap in a REPEAT, crank the count up, and watch a single loop outgun a fistful of copy-pasted zaps.",
 		winText: "Two slots. Nine zaps. THAT'S leverage.",
 		authored: [rep(9, [act("ZAP")])],
@@ -128,6 +136,7 @@ export const PROGRAM_BATTLES: Record<string, ProgramBattleDef> = {
 		xp: 16,
 		bits: 15,
 		winFlag: "won.gym3-t1",
+		teaches: "if",
 		intro: "It opens and shuts. Zap the shut, get bitten. React, don't recite.",
 		authored: [rep(9, [iff("SHIELDED", "PIERCE", "ZAP")])]
 	},
@@ -145,6 +154,7 @@ export const PROGRAM_BATTLES: Record<string, ProgramBattleDef> = {
 		xp: 40,
 		bits: 45,
 		winFlag: "won.gym3",
+		teaches: "if",
 		intro: "Seven beats, five of them tricky. No fixed script survives this. Ask the moment what it needs.",
 		winText: "IF you understood that, THEN you did. No else about it.",
 		authored: [rep(9, [iff("SHIELDED", "PIERCE", "ZAP")])],
@@ -165,6 +175,7 @@ export const PROGRAM_BATTLES: Record<string, ProgramBattleDef> = {
 		xp: 55,
 		bits: 55,
 		winFlag: "won.gym4",
+		teaches: "vars",
 		intro: "ARMOR 2: every hit loses two. A plain zap bounces off. Store power. Spend it all at once.",
 		winText: "You kept a number in your head and it kept you. That's state.",
 		authored: [rep(6, [act("BOOST"), act("BOOST"), act("ZAP")])],
@@ -184,6 +195,7 @@ export const PROGRAM_BATTLES: Record<string, ProgramBattleDef> = {
 		xp: 30,
 		bits: 25,
 		winFlag: "won.gym5-t1",
+		teaches: "func",
 		intro: "Guard-zap-answer, guard-zap-answer. Sick of assembling it? NAME it. That's what routines are for.",
 		authored: [call("JAB"), call("JAB"), call("JAB"), rep(2, [act("ZAP")])],
 		proofRoutines: { JAB: [act("GUARD"), act("ZAP"), iff("SHIELDED", "PIERCE", "ZAP")] }
@@ -202,6 +214,7 @@ export const PROGRAM_BATTLES: Record<string, ProgramBattleDef> = {
 		xp: 70,
 		bits: 70,
 		winFlag: "won.gym5",
+		teaches: "func",
 		intro: "Nine beats, four bites, one opening — twice over. Six slots will not hold eighteen steps. Name the steps.",
 		winText: "You didn't write a longer program. You wrote a better vocabulary.",
 		authored: [call("HEAD"), call("BODY"), call("TAIL"), call("HEAD"), call("BODY"), call("TAIL")],
@@ -257,6 +270,7 @@ export const PROGRAM_BATTLES: Record<string, ProgramBattleDef> = {
 		xp: 95,
 		bits: 95,
 		winFlag: "won.gym7",
+		teaches: "debug",
 		intro: "This program ALMOST works — a promising student wrote it, then cried. Run it. Watch it fail. Fix ONE thing at a time.",
 		winText: "You didn't rewrite it. You READ it. That's the whole discipline.",
 		authored: [rep(6, [act("GUARD"), act("ZAP"), iff("SHIELDED", "PIERCE", "ZAP")])],

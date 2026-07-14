@@ -584,6 +584,61 @@ body.touch-enabled #touch {
 
 .gym-mem.full { color: var(--gb0); font-weight: 700; text-decoration: underline; }
 
+.gym-help {
+	margin-left: calc(var(--u) * 2);
+	flex: none;
+	width: calc(var(--u) * 9);
+	height: calc(var(--u) * 9);
+	border-radius: 50%;
+	background: var(--gb0);
+	color: var(--gb3);
+	border: calc(var(--u) * 0.75) solid var(--gb0);
+	font-family: var(--font);
+	font-weight: 700;
+	font-size: calc(var(--u) * 6);
+	cursor: pointer;
+}
+.gym-help:hover { background: var(--gb1); }
+
+.coach-overlay {
+	position: absolute;
+	inset: 0;
+	background: rgba(8, 24, 32, 0.55);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: calc(var(--u) * 4);
+	z-index: 10;
+}
+
+.coach-card {
+	max-width: calc(var(--u) * 150);
+	padding: calc(var(--u) * 4);
+	max-height: 90%;
+	overflow-y: auto;
+}
+
+.coach-title {
+	font-weight: 700;
+	font-size: calc(var(--u) * 6.5);
+	margin-bottom: calc(var(--u) * 2);
+	border-bottom: calc(var(--u) * 0.75) solid var(--gb2);
+	padding-bottom: calc(var(--u) * 1.5);
+}
+
+.coach-line {
+	font-size: calc(var(--u) * 5.5);
+	line-height: 1.5;
+	margin: calc(var(--u) * 1) 0;
+}
+
+.coach-ok {
+	margin-top: calc(var(--u) * 3);
+	width: 100%;
+	font-size: calc(var(--u) * 7);
+	padding: calc(var(--u) * 2);
+}
+
 .gym-main {
 	flex: 1;
 	display: flex;
