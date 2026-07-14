@@ -209,8 +209,7 @@ export const PROGRAM_BATTLES: Record<string, ProgramBattleDef> = {
 			HEAD: [act("GUARD"), act("ZAP"), act("GUARD")],
 			BODY: [act("ZAP"), act("ZAP"), act("GUARD")],
 			TAIL: [act("ZAP"), act("GUARD"), iff("SHIELDED", "PIERCE", "ZAP")]
-		},
-		gatedBy: "func"
+		}
 	},
 	gym6: {
 		id: "gym6",
@@ -242,8 +241,7 @@ export const PROGRAM_BATTLES: Record<string, ProgramBattleDef> = {
 			ALPHA: [act("GUARD"), act("ZAP"), act("GUARD")],
 			BETA: [act("ZAP"), act("ZAP"), act("GUARD")],
 			GAMMA: [act("ZAP"), act("GUARD"), act("ZAP")]
-		},
-		gatedBy: "func"
+		}
 	},
 	gym7: {
 		id: "gym7",

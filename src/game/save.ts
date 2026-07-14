@@ -3,6 +3,7 @@
 // devices. Saves are versioned; unknown fields survive round-trips.
 
 import { SAVE_VERSION, newGameState, type GameState } from "./state";
+import { MAPS } from "../content/maps";
 
 const KEY_PREFIX = "kq.save.";
 export const AUTOSAVE_SLOT = "auto";
@@ -72,27 +73,66 @@ export function anySaveExists(): boolean {
 	return [AUTOSAVE_SLOT, ...SLOTS].some((slot) => localStorage.getItem(storageKey(slot)) !== null);
 }
 
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+	return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
 // Deep-merges a stored save over a fresh state so fields added in later game
-// versions pick up their defaults instead of becoming undefined.
+// versions pick up their defaults. Also DEFENSIVELY validates every nested
+// shape: a corrupt or hand-edited import code can hold arbitrary JSON, and a
+// bad type reaching gameplay (a string where a routine array is expected, a
+// mapId that doesn't exist) would crash later in a baffling place. Anything
+// that fails validation falls back to its default rather than propagating.
 export function migrate(raw: unknown): GameState | null {
-	if (typeof raw !== "object" || raw === null) return null;
+	if (!isPlainObject(raw)) return null;
 	const candidate = raw as Partial<GameState>;
-	if (!candidate.player || typeof candidate.player.mapId !== "string") return null;
+	if (!isPlainObject(candidate.player) || typeof candidate.player.mapId !== "string") return null;
 	const base = newGameState();
+
+	const badges = Array.isArray(candidate.badges)
+		? candidate.badges.filter((b): b is string => typeof b === "string")
+		: [];
+	const flags = isPlainObject(candidate.flags) ? (candidate.flags as Record<string, boolean>) : {};
+	const items = isPlainObject(candidate.items)
+		? Object.fromEntries(
+				Object.entries(candidate.items).filter(([, n]) => typeof n === "number" && n > 0)
+			)
+		: {};
+	const routines = Array.isArray(candidate.routines)
+		? candidate.routines.filter(
+				(r): r is GameState["routines"][number] =>
+					isPlainObject(r) && typeof r.name === "string" && Array.isArray(r.blocks)
+			)
+		: [];
+	const dexSeen = isPlainObject(candidate.dex) && isPlainObject((candidate.dex as { seen?: unknown }).seen)
+		? ((candidate.dex as { seen: Record<string, number> }).seen)
+		: {};
+	const respawn = isPlainObject(candidate.respawn) && typeof (candidate.respawn as { mapId?: unknown }).mapId === "string"
+		? (candidate.respawn as GameState["respawn"])
+		: base.respawn;
+
 	const merged: GameState = {
 		...base,
 		...candidate,
 		version: SAVE_VERSION,
 		player: { ...base.player, ...candidate.player },
-		badges: candidate.badges ?? [],
-		flags: candidate.flags ?? {},
-		items: candidate.items ?? {},
-		routines: candidate.routines ?? [],
-		dex: { seen: candidate.dex?.seen ?? {} },
-		respawn: candidate.respawn ?? base.respawn,
-		stats: { ...base.stats, ...candidate.stats },
-		options: { ...base.options, ...candidate.options }
+		badges,
+		flags,
+		items,
+		routines,
+		dex: { seen: dexSeen },
+		respawn,
+		stats: { ...base.stats, ...(isPlainObject(candidate.stats) ? candidate.stats : {}) },
+		options: { ...base.options, ...(isPlainObject(candidate.options) ? candidate.options : {}) }
 	};
+
+	// A mapId that no longer exists would break world.load on first render.
+	if (!MAPS[merged.player.mapId]) {
+		merged.player.mapId = base.player.mapId;
+		merged.player.x = base.player.x;
+		merged.player.y = base.player.y;
+	}
+	if (!MAPS[merged.respawn.mapId]) merged.respawn = base.respawn;
 	return merged;
 }
 

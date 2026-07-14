@@ -43,6 +43,9 @@ type Picker =
 
 const TURN_MS = 500;
 const TURN_MS_FAST = 130;
+// Loop-body cap. Must equal VocabSpec.maxBodyLen wherever the fairness solver
+// proves gating, so the solver's exhaustive search covers every buildable loop.
+const MAX_LOOP_BODY = 3;
 
 export class GymBattle {
 	active = false;
@@ -309,8 +312,11 @@ export class GymBattle {
 		if (this.picker.kind === "else") {
 			const picker = this.picker;
 			const finish = (els?: BotOp): void => {
-				this.insertBlock(iff(picker.cond, picker.then, els));
+				// Clear the picker BEFORE inserting: insertBlock repaints the
+				// palette, and a stale "else" picker would leave the ELSE chips
+				// live for one more click — inserting a second, unwanted IF.
 				this.picker = { kind: "none" };
+				this.insertBlock(iff(picker.cond, picker.then, els));
 			};
 			return [
 				{ label: "NO ELSE", on: () => finish(undefined) },
@@ -401,8 +407,11 @@ export class GymBattle {
 		const def = this.def!;
 		if (this.openLoop) {
 			if (block.kind !== "act" && block.kind !== "if") return;
-			if (this.openLoop.block.body.length >= 3) {
-				this.toast("Loop bodies hold up to 3 blocks.");
+			// Cap loop bodies at 2. This is a hard constraint: the fairness
+			// solver enumerates the complete grammar up to this length, so the
+			// editor must not exceed it or a gate proof could become unsound.
+			if (this.openLoop.block.body.length >= MAX_LOOP_BODY) {
+				this.toast("Loop bodies hold up to " + MAX_LOOP_BODY + " blocks. Use a routine for more.");
 				this.audio.sfx("wrong");
 				return;
 			}

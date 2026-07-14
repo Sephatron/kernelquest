@@ -61,9 +61,13 @@ export type Puzzle =
 	| {
 			kind: "spotbug";
 			prompt: string;
-			code: string[]; // one line per op
+			// Each line: the operation, and the running value the program CLAIMS
+			// it produces. Exactly one claim is wrong; the error is propagated
+			// downstream (as a real bug would be), so only the buggy line fails
+			// the "op applied to the previous claim" check — making it unique.
+			lines: { text: string; claim: number }[];
+			ops: ValueOp[]; // parallel to lines; lets tests re-derive correctness
 			buggyLine: number;
-			expected: number;
 			variable: string;
 			explainCorrect: string;
 	  };
@@ -302,79 +306,70 @@ function genOrder(seed: number, zone: number): Puzzle {
 	};
 }
 
-function genSpotbug(seed: number, zone: number, fuel = 12): Puzzle {
-	if (fuel <= 0) return genSetAdd(seed)!; // give up gracefully on cursed seeds
-	const r = rng(seed);
-	const a = irange(r, 2, 5);
-	const b = irange(r, 2, 5);
-	const times = irange(r, 2, 4);
-	const correct: ValueOp[] =
-		zone >= 3 && r() < 0.5
-			? [
-					{ kind: "set", v: "x", n: a },
-					{ kind: "add", v: "x", n: b },
-					{ kind: "vrepeat", times, body: [{ kind: "add", v: "x", n: 2 }] },
-					{ kind: "sub", v: "x", n: 1 }
-				]
-			: [
-					{ kind: "set", v: "x", n: a },
-					{ kind: "add", v: "x", n: b },
-					{ kind: "double", v: "x" },
-					{ kind: "add", v: "x", n: 1 }
-				];
-	const expected = runValue(correct)["x"] ?? 0;
-	// Mutate one line.
-	const mutable = correct.map((_, i) => i);
-	const target = pick(r, mutable);
-	const buggy = correct.map((op, i) => {
-		if (i !== target) return op;
-		if (op.kind === "set") return { ...op, n: op.n + irange(r, 1, 2) };
-		if (op.kind === "add") return { ...op, n: op.n + irange(r, 1, 3) };
-		if (op.kind === "sub") return { ...op, n: op.n + 1 };
-		if (op.kind === "double") return { kind: "add", v: "x", n: 2 } as ValueOp;
-		if (op.kind === "vrepeat") return { ...op, times: op.times + 1 };
-		return op;
-	});
-	const buggyResult = runValue(buggy)["x"] ?? 0;
-	if (buggyResult === expected) return genSpotbug(seed + 101, zone, fuel - 1); // mutation invisible; retry
-	// Ambiguity check: if editing any OTHER single line could also reach the
-	// expected result, a player tapping that line would be wrongly marked
-	// wrong. Regenerate until the buggy line is the only fixable one.
-	if (anotherLineCanFix(buggy, target, expected)) return genSpotbug(seed + 211, zone, fuel - 1);
-	// Flatten for display: vrepeat renders as two lines but stays one op —
-	// display lines map 1:1 to ops via joining with a marker.
-	const code = buggy.map((op) => describeValueProgram([op]).join(" · "));
-	return {
-		kind: "spotbug",
-		prompt: "This SHOULD end with x = " + expected + ", but ends with x = " + buggyResult + ". Tap the broken line.",
-		code,
-		buggyLine: target,
-		expected,
-		variable: "x",
-		explainCorrect: "Fix that line and the maths checks out again."
-	};
+// Applies one linear op to a running value. Spotbug programs are deliberately
+// linear (no loops/ifs) so "the running value after each line" is well-defined
+// and a single wrong line is unambiguous.
+function applyLinear(op: ValueOp, prev: number): number {
+	switch (op.kind) {
+		case "set":
+			return op.n;
+		case "add":
+			return prev + op.n;
+		case "sub":
+			return prev - op.n;
+		case "double":
+			return prev * 2;
+		default:
+			return prev; // spotbug never builds copy/vrepeat/vif ops
+	}
 }
 
-// Tries every plausible single-line replacement on lines other than the
-// mutated one; true if any of them reaches the expected result.
-function anotherLineCanFix(buggy: ValueOp[], target: number, expected: number): boolean {
-	for (let j = 0; j < buggy.length; j++) {
-		if (j === target) continue;
-		const original = buggy[j]!;
-		const candidates: ValueOp[] = [];
-		for (let n = 0; n <= 15; n++) {
-			candidates.push({ kind: "set", v: "x", n }, { kind: "add", v: "x", n }, { kind: "sub", v: "x", n });
-		}
-		candidates.push({ kind: "double", v: "x" });
-		if (original.kind === "vrepeat") {
-			for (let times = 1; times <= 8; times++) candidates.push({ ...original, times });
-		}
-		for (const candidate of candidates) {
-			const patched = buggy.map((op, i) => (i === j ? candidate : op));
-			if ((runValue(patched)["x"] ?? 0) === expected) return true;
-		}
+// Trace-debugging puzzle: a linear program is shown with the running value it
+// CLAIMS after each line. Exactly one line's claim is wrong, and the error is
+// propagated downstream — so only that line fails "claim == op(previous
+// claim)", making it the unique answer. Always constructible: no retry loop.
+function genSpotbug(seed: number, zone: number): Puzzle {
+	const r = rng(seed);
+	const len = zone >= 5 ? 4 : 3;
+	const ops: ValueOp[] = [{ kind: "set", v: "x", n: irange(r, 2, 6) }];
+	for (let i = 1; i < len; i++) {
+		const choice = irange(r, 0, zone >= 3 ? 2 : 1);
+		if (choice === 0) ops.push({ kind: "add", v: "x", n: irange(r, 2, 6) });
+		else if (choice === 1) ops.push({ kind: "double", v: "x" });
+		else ops.push({ kind: "sub", v: "x", n: irange(r, 1, 4) });
 	}
-	return false;
+
+	// True running values.
+	const truth: number[] = [];
+	for (let i = 0; i < ops.length; i++) {
+		truth.push(applyLinear(ops[i]!, i === 0 ? 0 : truth[i - 1]!));
+	}
+
+	// Corrupt one operation line (not the initial SET — the bug is in the
+	// working, not the starting value), then propagate the error forward.
+	const buggyLine = irange(r, 1, ops.length - 1);
+	const delta = pick(r, [-3, -2, -1, 1, 2, 3] as const);
+	const claims: number[] = [];
+	for (let i = 0; i < ops.length; i++) {
+		const prevClaim = i === 0 ? 0 : claims[i - 1]!;
+		const honest = applyLinear(ops[i]!, prevClaim);
+		claims.push(i === buggyLine ? honest + delta : honest);
+	}
+
+	const lines = ops.map((op, i) => ({
+		text: describeValueProgram([op]).join(" "),
+		claim: claims[i]!
+	}));
+
+	return {
+		kind: "spotbug",
+		prompt: "The running value on one line is wrong. Tap the line where the maths first breaks.",
+		lines,
+		ops,
+		buggyLine,
+		variable: "x",
+		explainCorrect: "From that line on, every value inherited the mistake — that's how one bug spreads."
+	};
 }
 
 // ------------------------------------------------------------- dispatcher

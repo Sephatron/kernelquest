@@ -527,6 +527,14 @@ body.touch-enabled #touch {
 .codebox .codeline.focusable { cursor: pointer; border-left: calc(var(--u)) solid transparent; }
 .codebox .codeline.selected { border-left-color: var(--gb3); background: var(--gb1); }
 
+.traceline {
+	display: flex;
+	justify-content: space-between;
+	gap: calc(var(--u) * 4);
+	align-items: baseline;
+}
+.traceline .trace-val { font-weight: 700; white-space: nowrap; }
+
 .optrow { display: flex; gap: calc(var(--u) * 2); flex-wrap: wrap; }
 
 .puzzle-row {

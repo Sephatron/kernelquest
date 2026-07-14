@@ -39,6 +39,6 @@ export function mountTouch(input: Input): void {
 	bind(el("button", "d-left", dpad, "◀"), "left");
 	bind(el("button", "d-right", dpad, "▶"), "right");
 	bind(el("button", "t-b", ab, "B"), "b");
-	bind(el("button", "t-a ", ab, "A"), "a");
+	bind(el("button", "t-a", ab, "A"), "a");
 	bind(el("button", "t-start", buttons, "START"), "start");
 }

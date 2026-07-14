@@ -4,7 +4,16 @@
 
 import { describe, expect, it } from "vitest";
 import { generatePuzzle } from "../src/battle/puzzles";
-import { runValue } from "../src/battle/minivm";
+import { runValue, type ValueOp } from "../src/battle/minivm";
+
+// Mirror of the linear step used by the spotbug generator.
+function applyLinear(op: ValueOp, prev: number): number {
+	if (op.kind === "set") return op.n;
+	if (op.kind === "add") return prev + op.n;
+	if (op.kind === "sub") return prev - op.n;
+	if (op.kind === "double") return prev * 2;
+	return prev;
+}
 
 const SEEDS_PER_ZONE = 400;
 
@@ -46,10 +55,29 @@ describe("puzzle generator invariants", () => {
 					expect(solvable, "some order reaches the goal").toBe(true);
 				}
 				if (puzzle.kind === "spotbug") {
-					expect(puzzle.buggyLine).toBeGreaterThanOrEqual(0);
-					expect(puzzle.buggyLine).toBeLessThan(puzzle.code.length);
+					// Exactly one line must fail the "claim == op(previous claim)"
+					// check, and it must be the declared buggyLine — the whole
+					// point of the trace puzzle is a single unambiguous answer.
+					const claims = puzzle.lines.map((l) => l.claim);
+					const broken: number[] = [];
+					for (let i = 0; i < puzzle.ops.length; i++) {
+						const prev = i === 0 ? 0 : claims[i - 1]!;
+						if (claims[i] !== applyLinear(puzzle.ops[i]!, prev)) broken.push(i);
+					}
+					expect(broken, "zone " + zone + " seed " + seed + " unique bug line").toEqual([puzzle.buggyLine]);
 				}
 			}
 		});
 	}
+
+	it("spotbug puzzles actually generate (no silent fallback to MCQ)", () => {
+		// Zone 7's pool is spotbug-heavy; every spotbug slot must yield a real
+		// spotbug, not fall through to another type.
+		let spotbugs = 0;
+		for (let seed = 0; seed < 500; seed++) {
+			const p = generatePuzzle(7, seed * 13 + 7);
+			if (p.kind === "spotbug") spotbugs++;
+		}
+		expect(spotbugs, "zone 7 must produce spotbug puzzles").toBeGreaterThan(50);
+	});
 });

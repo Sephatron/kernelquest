@@ -163,8 +163,12 @@ export class WildBattle {
 		const host = puzzle.kind === "grid" ? el("div", "puzzle-row", panel) : panel;
 		const codeBox = el("div", "codebox gbbox", host);
 		if (puzzle.kind === "spotbug") {
-			puzzle.code.forEach((line, i) => {
-				const node = el("div", "codeline", codeBox, line);
+			// Each line shows the op and the value the program claims for x; the
+			// player taps the line where a claim first stops adding up.
+			puzzle.lines.forEach((line, i) => {
+				const node = el("div", "codeline traceline", codeBox);
+				el("span", "trace-op", node, line.text);
+				el("span", "trace-val", node, "x = " + line.claim);
 				this.addFocusable(node, () => this.answerSpotbug(i));
 			});
 		} else {
@@ -247,8 +251,13 @@ export class WildBattle {
 		if (this.phase !== "puzzle") return;
 		const puzzle = this.puzzle!;
 		if (puzzle.kind !== "spotbug") return;
-		if (line === puzzle.buggyLine) this.win();
-		else this.hurt("That line is fine — it does exactly what it says. The bug hides elsewhere.");
+		if (line === puzzle.buggyLine) {
+			this.win();
+		} else if (line < puzzle.buggyLine) {
+			this.hurt("That line's value is correct — apply the op to the line above and it matches. Look further down.");
+		} else {
+			this.hurt("That value looks right for the line above it — but the line above already carried the error. Trace back to where it started.");
+		}
 	}
 
 	private answerOrder(): void {
