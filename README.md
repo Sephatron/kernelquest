@@ -39,9 +39,11 @@ One pure, deterministic battle VM (`src/battle/vm.ts`) drives gameplay, the wild
 
 1. the authored solution wins within the slot budget,
 2. a win is *discoverable* with the player's vocabulary, and
-3. concept-gated gyms are **provably unwinnable** without their concept.
+3. each gym genuinely requires its concept:
+   - **primitive gyms** (loops, conditionals, variables) are **provably unwinnable** without their new block — an exhaustive search over the *complete* editor grammar (the solver's grammar matches the editor's exactly, so the proof is about programs a player can actually build);
+   - **function gyms** are proven **un-fittable** without functions — the intended solution's slot cost exceeds the budget once its routines are inlined, so naming is required to make it fit.
 
-So all eight badges are guaranteed fair and correctly gated — without a human play-testing each one. Content bugs are CI failures.
+So all eight badges are machine-checked fair and correctly gated — without a human play-testing each one. Content bugs are CI failures.
 
 ## Architecture
 
