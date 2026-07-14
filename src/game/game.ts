@@ -168,15 +168,7 @@ export class Game {
 			this.doWarp(warp.toMap, warp.toX, warp.toY, warp.dir ?? p.dir, warp.kind === "door");
 			return;
 		}
-		const trigger = this.world.triggerAt(p.x, p.y);
-		if (trigger) {
-			const script = SCRIPTS[trigger.script];
-			if (script) {
-				if (trigger.onceFlag) this.state.flags[trigger.onceFlag] = true;
-				this.script.start(script);
-				return;
-			}
-		}
+		if (this.fireTriggerAt(p.x, p.y)) return;
 		if (this.silencerSteps > 0) this.silencerSteps--;
 		this.stepsSinceEncounter++;
 		if (
@@ -247,8 +239,28 @@ export class Game {
 			this.player.centerCamera(this.renderer, this.world);
 			this.playMapMusic();
 			const onEnter = this.world.map.onEnter;
-			if (onEnter && SCRIPTS[onEnter]) this.script.start(SCRIPTS[onEnter]!);
+			if (onEnter && SCRIPTS[onEnter]) {
+				this.script.start(SCRIPTS[onEnter]!);
+				return;
+			}
+			// A warp lands the player ON the destination tile without a step, so
+			// onStep never runs — fire an arrival trigger here too. This is what
+			// makes gym-entry unlocks (REPEAT/IF/etc.) reliably grant on entry,
+			// before the aide or leader fight that needs them.
+			this.fireTriggerAt(x, y);
 		});
+	}
+
+	// Runs the trigger on a tile if one is present and not yet consumed. Shared
+	// by warp arrival (doWarp) and stepping (onStep).
+	private fireTriggerAt(x: number, y: number): boolean {
+		const trigger = this.world.triggerAt(x, y);
+		if (!trigger) return false;
+		const script = SCRIPTS[trigger.script];
+		if (!script) return false;
+		if (trigger.onceFlag) this.state.flags[trigger.onceFlag] = true;
+		this.script.start(script);
+		return true;
 	}
 
 	autosave(): void {

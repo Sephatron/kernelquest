@@ -43,6 +43,30 @@ describe("map references", () => {
 		}
 	});
 
+	it("gym-entry triggers are landed on by an inbound warp (so unlocks fire)", () => {
+		// A warp drops the player onto the destination tile without a step, and
+		// gym-entry triggers grant the concept block the fights inside require.
+		// So every gym-entry trigger MUST sit under an inbound warp destination,
+		// or the player can walk straight past it and the gym is unbeatable.
+		const inbound: Record<string, { x: number; y: number }[]> = {};
+		for (const map of Object.values(MAPS)) {
+			for (const w of map.warps) {
+				(inbound[w.toMap] ??= []).push({ x: w.toX, y: w.toY });
+			}
+		}
+		for (const map of Object.values(MAPS)) {
+			for (const trig of map.triggers ?? []) {
+				if (!/^gym\d+-enter$/.test(trig.script)) continue;
+				const w = trig.w ?? 1;
+				const h = trig.h ?? 1;
+				const landed = (inbound[map.id] ?? []).some(
+					(d) => d.x >= trig.x && d.x < trig.x + w && d.y >= trig.y && d.y < trig.y + h
+				);
+				expect(landed, map.id + " entry trigger '" + trig.script + "' has no inbound warp on it").toBe(true);
+			}
+		}
+	});
+
 	it("every map's music track exists and encounter species have zones", () => {
 		for (const map of Object.values(MAPS)) {
 			for (const [species] of map.encounters?.species ?? []) {

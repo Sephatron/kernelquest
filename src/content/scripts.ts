@@ -37,7 +37,10 @@ function gymLeader(
 	];
 }
 
-// A gym-entry plaque + optional concept unlock.
+// A gym-entry plaque plus the concept unlock the gym teaches. This fires from
+// the entry trigger the moment you walk in (see Game.doWarp, which runs
+// arrival triggers) — BEFORE the aide or the leader, both of which need the
+// new block. The unlock flag persists, so re-entering (onceFlag) is fine.
 function gymEntry(text: string[], unlock?: { flag: string; toast: string }): Cmd[] {
 	const cmds: Cmd[] = [{ say: text }];
 	if (unlock) cmds.push({ unlock });
